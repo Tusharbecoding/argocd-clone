@@ -1,7 +1,9 @@
 package gitops
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"time"
 
 	yaml "sigs.k8s.io/yaml/goyaml.v3"
@@ -28,5 +30,21 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 	return &config, nil
+}
+
+func GitClone(repo string) error {
+	fmt.Println("Cloning git repo", repo)
+	if err := exec.Command("git", "clone", repo, "repo").Run(); err != nil {
+		return err
+	}
+	return nil
+}
+
+
+func GitPull() error {
+	cmd := exec.Command("git", "-C", "repo", "pull")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
