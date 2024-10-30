@@ -6,7 +6,8 @@ import (
 	"os/exec"
 	"time"
 
-	yaml "sigs.k8s.io/yaml/goyaml.v3"
+	"github.com/tusharbecoding/argocd-clone/pkg/k8s"
+	"gopkg.in/yaml.v2"
 )
 
 type Config struct {
@@ -48,3 +49,37 @@ func GitPull() error {
 	return cmd.Run()
 }
 
+func Sync(config *Config, client *k8s.K8sClient) error {
+    if _, err := os.Stat("repo"); os.IsNotExist(err) {
+        if err := GitClone(config.Git.Repo); err != nil {
+            return err
+        }
+    }
+
+    for {
+        if err := GitPull(); err != nil {
+            fmt.Println("Failed to pull:", err)
+            return err
+        }
+        files, err := os.ReadDir("repo/manifests")
+        if err != nil {
+            return err
+        }
+
+        for _, file := range files {
+            manifestPath := fmt.Sprintf("repo/manifests/%s", file.Name())
+            manifest, err := os.ReadFile(manifestPath)
+            if err != nil {
+                return err
+            }
+            fmt.Println("Applying:", manifestPath)
+            if err := client.ApplyManifest(string(manifest)); err != nil {
+                fmt.Println("Failed to apply manifest:", err)
+                return err
+            }
+        }
+
+        fmt.Println("Sync completed, waiting for next poll interval...")
+        time.Sleep(config.Git.PollInterval)
+    }
+}
