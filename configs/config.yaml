@@ -1,7 +1,7 @@
 git:
-  repo: "https://github.com/yourusername/k8s-manifests"
+  repo: "https://github.com/tusharbecoding/k8s-manifests"
   branch: "main"
-  pollInterval: 10s # Time interval to check for changes
+  pollInterval: 10s
 
 kubernetes:
-  kubeconfig: "/path/to/your/kubeconfig" # Path to local kubeconfig
+  kubeconfig: "/Users/tusharchopra/.kube/config" # Path to local kubeconfig

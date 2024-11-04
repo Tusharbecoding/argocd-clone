@@ -2,7 +2,10 @@ module github.com/tusharbecoding/argocd-clone
 
 go 1.23.2
 
-require k8s.io/client-go v0.31.2
+require (
+	gopkg.in/yaml.v2 v2.4.0
+	k8s.io/client-go v0.31.2
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -36,7 +39,6 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.31.2 // indirect
 	k8s.io/apimachinery v0.31.2 // indirect
