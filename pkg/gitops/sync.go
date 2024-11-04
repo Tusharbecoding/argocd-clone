@@ -2,8 +2,10 @@ package gitops
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"github.com/tusharbecoding/argocd-clone/pkg/k8s"
@@ -12,8 +14,8 @@ import (
 
 type Config struct {
 	Git struct {
-		Repo string `yaml:"repo"`
-		Branch string `yaml:"branch"`
+		Repo         string        `yaml:"repo"`
+		Branch       string        `yaml:"branch"`
 		PollInterval time.Duration `yaml:"pollInterval"`
 	} `yaml:"git"`
 	Kubernetes struct {
@@ -34,13 +36,12 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 func GitClone(repo string) error {
-	fmt.Println("Cloning git repo", repo)
+	fmt.Println("Cloning git repo:", repo)
 	if err := exec.Command("git", "clone", repo, "repo").Run(); err != nil {
 		return err
 	}
 	return nil
 }
-
 
 func GitPull() error {
 	cmd := exec.Command("git", "-C", "repo", "pull")
@@ -49,37 +50,43 @@ func GitPull() error {
 	return cmd.Run()
 }
 
+// Sync clones or pulls the repo and applies manifests to the Kubernetes cluster
 func Sync(config *Config, client *k8s.K8sClient) error {
-    if _, err := os.Stat("repo"); os.IsNotExist(err) {
-        if err := GitClone(config.Git.Repo); err != nil {
-            return err
-        }
-    }
+	if _, err := os.Stat("repo"); os.IsNotExist(err) {
+		if err := GitClone(config.Git.Repo); err != nil {
+			return err
+		}
+	}
 
-    for {
-        if err := GitPull(); err != nil {
-            fmt.Println("Failed to pull:", err)
-            return err
-        }
-        files, err := os.ReadDir("repo/manifests")
-        if err != nil {
-            return err
-        }
+	if err := GitPull(); err != nil {
+		fmt.Println("Failed to pull:", err)
+		return err
+	}
 
-        for _, file := range files {
-            manifestPath := fmt.Sprintf("repo/manifests/%s", file.Name())
-            manifest, err := os.ReadFile(manifestPath)
-            if err != nil {
-                return err
-            }
-            fmt.Println("Applying:", manifestPath)
-            if err := client.ApplyManifest(string(manifest)); err != nil {
-                fmt.Println("Failed to apply manifest:", err)
-                return err
-            }
-        }
+	// Recursively apply all YAML files in repo/manifests
+	err := filepath.Walk("repo/manifests", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && (filepath.Ext(path) == ".yaml" || filepath.Ext(path) == ".yml") {
+			fmt.Println("Applying:", path)
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			if applyErr := client.ApplyManifest(string(content)); applyErr != nil {
+				log.Printf("Failed to apply manifest %s: %v\n", path, applyErr)
+				return applyErr
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
 
-        fmt.Println("Sync completed, waiting for next poll interval...")
-        time.Sleep(config.Git.PollInterval)
-    }
+	fmt.Println("Sync completed, waiting for next poll interval...")
+	return nil
 }
+
+

@@ -13,17 +13,19 @@ type K8sClient struct {
 
 func NewK8sClient(kubeconfig string) (*K8sClient, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-    if err != nil {
-        return nil, err
-    }
-    clientset, err := kubernetes.NewForConfig(config)
-    if err != nil {
-        return nil, err
-    }
-    return &K8sClient{Clientset: clientset}, nil
+	if err != nil {
+		return nil, err
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return &K8sClient{Clientset: clientset}, nil
 }
 
 func (k *K8sClient) ApplyManifest(manifest string) error {
-    fmt.Println("Applying manifest:", manifest)
-    return nil
+	fmt.Println("Applying manifest:", manifest)
+	// Add kubectl apply logic here using clientset
+	// This placeholder should be replaced with actual Kubernetes apply logic
+	return nil
 }

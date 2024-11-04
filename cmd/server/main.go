@@ -18,7 +18,6 @@ func main() {
         log.Fatal("Failed to create Kubernetes client:", err)
     }
 
-    if err := gitops.Sync(config, client); err != nil {
-        log.Fatal("Sync failed:", err)
-    }
+    poller := gitops.NewPoller(config, client)
+    poller.Start()
 }
