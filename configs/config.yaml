@@ -1,5 +1,5 @@
 git:
-  repo: "https://github.com/tusharbecoding/k8s-manifests"
+  repo: "https://github.com/tusharbecoding/k8s-manifests" # Git repo URL you want to sync
   branch: "main"
   pollInterval: 10s
 

@@ -38,7 +38,6 @@ func NewK8sClient(kubeconfig string) (*K8sClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Get a RESTMapper to map resources
 	discoveryClient := cached.NewMemCacheClient(clientset.Discovery())
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
 
@@ -53,30 +52,25 @@ func NewK8sClient(kubeconfig string) (*K8sClient, error) {
 func (k *K8sClient) ApplyManifest(manifest string) error {
 	fmt.Println("Applying manifest:", manifest)
 
-	// Convert the manifest to an io.Reader for decoding
 	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(manifest)), 4096)
 
-	// Parse YAML to unstructured
 	obj := &unstructured.Unstructured{}
 	if err := decoder.Decode(obj); err != nil {
 		return fmt.Errorf("failed to decode manifest: %v", err)
 	}
 
-	// Determine resource details
 	gvk := obj.GroupVersionKind()
 	mapping, err := k.RESTMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
 		return fmt.Errorf("failed to get REST mapping: %v", err)
 	}
 
-	// Set a default namespace if not specified
 	namespace := obj.GetNamespace()
 	if namespace == "" {
 		namespace = "default"
 		obj.SetNamespace(namespace)
 	}
 
-	// Set up resource interface and apply
 	resourceClient := k.DynamicClient.Resource(mapping.Resource).Namespace(namespace)
 	_, err = resourceClient.Create(context.TODO(), obj, metav1.CreateOptions{})
 	if err != nil {

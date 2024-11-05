@@ -50,7 +50,6 @@ func GitPull() error {
 	return cmd.Run()
 }
 
-// Sync clones or pulls the repo and applies manifests to the Kubernetes cluster
 func Sync(config *Config, client *k8s.K8sClient) error {
 	if _, err := os.Stat("repo"); os.IsNotExist(err) {
 		if err := GitClone(config.Git.Repo); err != nil {
@@ -63,7 +62,6 @@ func Sync(config *Config, client *k8s.K8sClient) error {
 		return err
 	}
 
-	// Recursively apply all YAML files in repo/manifests
 	err := filepath.Walk("repo/manifests", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
