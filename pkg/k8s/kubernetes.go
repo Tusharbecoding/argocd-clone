@@ -1,14 +1,28 @@
 package k8s
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/yaml"
+	cached "k8s.io/client-go/discovery/cached"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 type K8sClient struct {
-	Clientset *kubernetes.Clientset
+	Clientset     *kubernetes.Clientset
+	DynamicClient dynamic.Interface
+	Config        *rest.Config
+	RESTMapper    meta.RESTMapper
 }
 
 func NewK8sClient(kubeconfig string) (*K8sClient, error) {
@@ -20,12 +34,63 @@ func NewK8sClient(kubeconfig string) (*K8sClient, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &K8sClient{Clientset: clientset}, nil
+	dynClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	// Get a RESTMapper to map resources
+	discoveryClient := cached.NewMemCacheClient(clientset.Discovery())
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
+
+	return &K8sClient{
+		Clientset:     clientset,
+		DynamicClient: dynClient,
+		Config:        config,
+		RESTMapper:    mapper,
+	}, nil
 }
 
 func (k *K8sClient) ApplyManifest(manifest string) error {
 	fmt.Println("Applying manifest:", manifest)
-	// Add kubectl apply logic here using clientset
-	// This placeholder should be replaced with actual Kubernetes apply logic
+
+	// Convert the manifest to an io.Reader for decoding
+	decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(manifest)), 4096)
+
+	// Parse YAML to unstructured
+	obj := &unstructured.Unstructured{}
+	if err := decoder.Decode(obj); err != nil {
+		return fmt.Errorf("failed to decode manifest: %v", err)
+	}
+
+	// Determine resource details
+	gvk := obj.GroupVersionKind()
+	mapping, err := k.RESTMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return fmt.Errorf("failed to get REST mapping: %v", err)
+	}
+
+	// Set a default namespace if not specified
+	namespace := obj.GetNamespace()
+	if namespace == "" {
+		namespace = "default"
+		obj.SetNamespace(namespace)
+	}
+
+	// Set up resource interface and apply
+	resourceClient := k.DynamicClient.Resource(mapping.Resource).Namespace(namespace)
+	_, err = resourceClient.Create(context.TODO(), obj, metav1.CreateOptions{})
+	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			fmt.Printf("Resource %s already exists, updating...\n", obj.GetName())
+			_, err = resourceClient.Update(context.TODO(), obj, metav1.UpdateOptions{})
+			if err != nil {
+				return fmt.Errorf("failed to update existing resource: %v", err)
+			}
+		} else {
+			return fmt.Errorf("failed to create resource: %v", err)
+		}
+	}
+
+	fmt.Println("Manifest applied successfully")
 	return nil
 }
